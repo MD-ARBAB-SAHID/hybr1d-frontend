@@ -1,34 +1,87 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+import React, { createContext, useState,useCallback,useEffect } from "react";
+const AuthContext = createContext({
+  token: null,
+  isLoggedin: false,
+  login: () => {},
+  logout: () => {},
+  uid:null
+});
+let timer;
+export const AuthContextProvider = (props) => {
 
-## Getting Started
+  const [token, setToken] = useState(null);
+  const [uid, setUID] = useState(null);
+  const [isLoggedin,setIsLoggedIn] = useState(false);
+  const [expiration,setExpiration] = useState();
+ 
+ 
+  const loginHandler = useCallback((token,id,expirationTime) => {
+    setToken(token);
+    setUID(id);
+    setIsLoggedIn(true);
 
-First, run the development server:
+    const expirationToken = expirationTime || new Date(new Date().getTime() + 5000);
+    setExpiration(expirationToken);
+    localStorage.setItem("token", token);
+    localStorage.setItem("uid", id);
+    localStorage.setItem("expirationToken",expirationToken.toISOString());
+    
+  },[]);
+  const logoutHandler = useCallback(() => {
+  
+    setToken(null);
+    setUID(null);
+    setIsLoggedIn(false);
+    setExpiration(null)
+    localStorage.removeItem("token");
+    localStorage.removeItem("uid");
+    localStorage.removeItem('expirationToken');
+  },[]);
 
-```bash
-npm run dev
-# or
-yarn dev
-```
+  useEffect(()=>{
+    const intialToken = localStorage.getItem("token");
+    const intialStudentId = localStorage.getItem("uid");
+    const expirationTime = localStorage.getItem("expirationToken")
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+    if(intialToken && intialStudentId && new Date(expirationTime)> new Date())
+    {
+      loginHandler(intialToken,intialStudentId,new Date(expirationTime));
+    }else{
+      logoutHandler();
+    }
+  
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+    },[loginHandler])
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+    useEffect(()=>{
+     
+      if(token && expiration)
+      {
+        
 
-## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+          timer = setTimeout(logoutHandler,expiration.getTime() -new Date().getTime())
+      }
+      else{
+        clearTimeout(timer);
+      }
+    },[token,expiration,logoutHandler])
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+  const contextValue = {
+    token,
+    isLoggedin,
+    login: loginHandler,
+    logout: logoutHandler,
+    uid: uid,
+  };
 
-## Deploy on Vercel
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {props.children}
+    </AuthContext.Provider>
+  );
+};
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+export default AuthContext;
